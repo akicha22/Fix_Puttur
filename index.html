@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FixPuttur</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+:root{--bg:#121212;--card:#1e1e1e;--line:#2f2f2f;--text:#f0f0f0;--muted:#9a9a9a;--orange:#ff8a1f;--red:#ef4444;--green:#22c55e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{position:sticky;top:0;z-index:1000;background:#0c0c0c;border-bottom:2px solid var(--orange)}
+h1{margin:0;padding:10px 14px 2px;font-size:1.25rem;color:var(--orange)}
+nav{display:flex}
+nav button{flex:1;padding:12px 4px;background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);font:inherit;font-weight:600;cursor:pointer}
+nav button.on{color:var(--orange);border-color:var(--orange)}
+main{max-width:720px;margin:0 auto;padding:12px 12px 80px}
+section{display:none}
+section.on{display:block}
+label{display:block;margin:12px 0 4px;font-size:.9rem;color:var(--muted)}
+input,select,textarea{width:100%;padding:11px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;font:inherit}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--orange);border-color:transparent}
+textarea{min-height:80px;resize:vertical}
+.check{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--text);font-size:1rem}
+.check input{width:22px;height:22px;accent-color:var(--orange)}
+.btn{padding:12px 16px;background:var(--orange);color:#111;border:0;border-radius:8px;font:inherit;font-weight:700;cursor:pointer}
+.btn.alt{background:transparent;color:var(--orange);border:1px solid var(--orange)}
+.btn:disabled{opacity:.5}
+.map{position:relative;z-index:0;height:300px;border-radius:10px;border:1px solid var(--line);margin:8px 0}
+.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.muted{color:var(--muted)}
+.small{font-size:.85rem}
+.legend{margin:4px 0 8px;font-size:.9rem;color:var(--muted)}
+.msg{display:none;margin:12px 0;padding:12px;border-radius:8px;border:1px solid}
+.msg.ok{display:block;background:#12301c;border-color:var(--green)}
+.msg.err{display:block;background:#3a1515;border-color:var(--red)}
+.card{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--c,var(--line));border-radius:10px;padding:12px;margin:10px 0}
+.card .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.card p{margin:6px 0}
+.card .btn{margin-top:8px}
+.rank{color:var(--orange);font-weight:800}
+.meta{font-size:.82rem;color:var(--muted)}
+.badge{padding:2px 10px;border-radius:99px;font-size:.75rem;font-weight:700;white-space:nowrap;text-transform:capitalize}
+.b-open{background:#4a1d1d;color:#fca5a5}
+.b-in_progress{background:#4a3410;color:#fdba74}
+.b-resolved{background:#14361f;color:#86efac}
+.flag{display:inline-block;margin-top:6px;padding:2px 8px;border-radius:6px;background:var(--red);color:#fff;font-size:.8rem;font-weight:700}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.ctl select{flex:1 1 120px;width:auto}
+.ctl input{flex:2 1 160px;width:auto}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);max-width:90%;padding:12px 16px;border-radius:10px;background:#222;border:1px solid var(--orange);opacity:0;pointer-events:none;transition:opacity .2s;z-index:2000}
+#toast.show{opacity:1}
+#toast.bad{border-color:var(--red)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛠️ FixPuttur</h1>
+  <nav>
+    <button data-t="report">Report</button>
+    <button data-t="board">Public board</button>
+    <button data-t="dept">Authority</button>
+  </nav>
+</header>
+
+<main>
+  <section id="t-report">
+    <form id="form">
+      <label for="cat">Category</label>
+      <select id="cat"></select>
+      <label for="desc">Description</label>
+      <textarea id="desc" required placeholder="What is the problem and where exactly?"></textarea>
+      <label for="phone">Your phone number</label>
+      <input id="phone" type="tel" inputmode="tel" required placeholder="10-digit mobile number">
+      <label class="check"><input id="sens" type="checkbox"> Near a school or hospital</label>
+      <label for="photo">Photo (optional)</label>
+      <input id="photo" type="file" accept="image/*">
+      <label>Tap the map to drop a pin</label>
+      <div class="row">
+        <button type="button" class="btn alt" id="loc">📍 Use my location</button>
+        <span id="coords" class="muted small">No pin yet</span>
+      </div>
+      <div id="mapR" class="map"></div>
+      <div id="rmsg" class="msg"></div>
+      <button class="btn" id="send" style="width:100%">Submit report</button>
+    </form>
+  </section>
+
+  <section id="t-board">
+    <div id="mapB" class="map"></div>
+    <div class="legend"><span style="color:#ef4444">●</span> High &nbsp;<span style="color:#ff8a1f">●</span> Medium &nbsp;<span style="color:#22c55e">●</span> Low</div>
+    <div id="blist"></div>
+  </section>
+
+  <section id="t-dept">
+    <label for="pin">Department PIN</label>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="Enter PIN">
+    <p class="muted small">Each department has its own PIN. It is checked when you update a status.</p>
+    <label for="dept">Department</label>
+    <select id="dept"></select>
+    <div id="dlist"></div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const CENTER = [12.766, 75.200];
+const CATS = ["open manhole","water leak","pothole","streetlight","garbage","request/suggestion"];
+const DEPTS = ["Roads","Water Supply","Electricity","Sanitation","General"];
+const prio = s => s >= 60 ? "#ef4444" : s >= 35 ? "#ff8a1f" : "#22c55e";   // red / orange / green
+
+$("#cat").innerHTML = CATS.map(c => `<option value="${c}">${cap(c)}</option>`).join("");
+$("#dept").innerHTML = `<option value="">All departments</option>` + DEPTS.map(d => `<option>${d}</option>`).join("");
+
+// ---------- helpers ----------
+let tt;
+function toast(t, bad) {
+  const e = $("#toast"); e.textContent = t; e.className = bad ? "bad show" : "show";
+  clearTimeout(tt); tt = setTimeout(() => e.className = "", 3500);
+}
+async function api(path, opts) {
+  let r;
+  try { r = await fetch(path, opts); } catch (e) { throw new Error("Cannot reach the server. Is it running?"); }
+  let data = null; try { data = await r.json(); } catch (e) {}
+  if (!r.ok) {
+    let d = data && data.detail;
+    if (Array.isArray(d)) d = d.map(x => ((x.loc || []).slice(-1)) + ": " + x.msg).join("; ");
+    throw new Error(d || "Request failed (" + r.status + ")");
+  }
+  return data;
+}
+const savedPhone = () => { try { return localStorage.getItem("fp_phone") || ""; } catch (e) { return ""; } };
+const savePhone = p => { try { localStorage.setItem("fp_phone", p); } catch (e) {} };
+function mkMap(id) {
+  const m = L.map(id).setView(CENTER, 14);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "&copy; OpenStreetMap contributors"}).addTo(m);
+  return m;
+}
+
+// ---------- tabs ----------
+const mapR = mkMap("mapR"), mapB = mkMap("mapB");
+function show(tab) {
+  document.querySelectorAll("section").forEach(s => s.classList.toggle("on", s.id === "t-" + tab));
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.t === tab));
+  if (tab === "report") setTimeout(() => mapR.invalidateSize(), 50);   // maps need a nudge after being hidden
+  if (tab === "board") { setTimeout(() => mapB.invalidateSize(), 50); loadBoard(); }
+  if (tab === "dept") loadDept();
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.t));
+
+// ---------- 1. report ----------
+let pin = null;
+function setPin(lat, lng) {
+  if (pin) pin.setLatLng([lat, lng]);
+  else pin = L.circleMarker([lat, lng], {radius: 11, color: "#fff", weight: 3, fillColor: "#ff8a1f", fillOpacity: 1}).addTo(mapR);
+  $("#coords").textContent = lat.toFixed(5) + ", " + lng.toFixed(5);
+}
+mapR.on("click", e => setPin(e.latlng.lat, e.latlng.lng));
+$("#loc").onclick = () => {
+  if (!navigator.geolocation) return toast("Location is not supported on this device.", true);
+  navigator.geolocation.getCurrentPosition(
+    p => { setPin(p.coords.latitude, p.coords.longitude); mapR.setView([p.coords.latitude, p.coords.longitude], 17); },
+    () => toast("Could not get your location. Allow access, or tap the map instead.", true),
+    {enableHighAccuracy: true, timeout: 10000});
+};
+function msg(t, kind) {
+  const m = $("#rmsg"); m.textContent = t; m.className = "msg " + kind;
+  m.scrollIntoView({behavior: "smooth", block: "nearest"});
+}
+$("#form").onsubmit = async e => {
+  e.preventDefault();
+  if (!pin) return msg("Tap the map to drop a pin first.", "err");
+  const ll = pin.getLatLng(), f = new FormData();
+  f.append("category", $("#cat").value);
+  f.append("description", $("#desc").value);
+  f.append("lat", ll.lat); f.append("lng", ll.lng);
+  f.append("phone", $("#phone").value);
+  f.append("near_sensitive", $("#sens").checked);
+  const file = $("#photo").files[0]; if (file) f.append("photo", file);
+  const b = $("#send"); b.disabled = true; b.textContent = "Sending...";
+  try {
+    const r = await api("/reports", {method: "POST", body: f});
+    savePhone($("#phone").value);
+    msg(r.merged
+      ? `✅ Merged into existing issue #${r.issue_id} (${r.distance_m} m away). It now has ${r.report_count} reports.`
+      : `✅ New issue #${r.issue_id} created. It has ${r.report_count} report.`, "ok");
+    e.target.reset(); $("#phone").value = savedPhone();
+    mapR.removeLayer(pin); pin = null; $("#coords").textContent = "No pin yet";
+  } catch (err) { msg(err.message, "err"); }
+  b.disabled = false; b.textContent = "Submit report";
+};
+$("#phone").value = savedPhone();
+
+// ---------- issue cards (shared by board + dashboard) ----------
+function card(i, n, dash) {
+  const e = i.escalation_level;
+  const flag = e ? `<div class="flag">🚩 Escalated · ${e > 1 ? "open 7+ days" : "open 3+ days"}</div>` : "";
+  const ctl = `<div class="ctl"><select id="s${i.id}">${["open","in_progress","resolved"].map(s =>
+      `<option value="${s}"${s === i.status ? " selected" : ""}>${s.replace("_", " ")}</option>`).join("")}</select>
+      <input id="n${i.id}" placeholder="Note (optional)"><button class="btn" onclick="setStatus(${i.id})">Update</button></div>`;
+  const aff = `<button class="btn alt" onclick="event.stopPropagation();affected(${i.id})">🙋 I'm affected too</button>`;
+  return `<div class="card" style="--c:${dash && e ? "#ef4444" : prio(i.priority_score)}" ${dash ? "" : `onclick="focusIssue(${i.id})"`}>
+    <div class="top"><b><span class="rank">#${n}</span> ${esc(cap(i.category))}</b><span class="badge b-${i.status}">${i.status.replace("_", " ")}</span></div>
+    <p>${esc(i.description)}</p>
+    <div class="meta">${i.report_count} report${i.report_count > 1 ? "s" : ""} · ${i.upvotes} affected · ${esc(i.department)} · ${i.days_open}d open · score ${i.priority_score}${i.near_sensitive ? " · 🏫 near school/hospital" : ""}</div>
+    ${flag}${dash ? ctl : aff}</div>`;
+}
+
+// ---------- 2. public board ----------
+let layer, markers = {};
+async function loadBoard() {
+  try {
+    const list = await api("/issues");
+    if (layer) layer.remove();
+    layer = L.layerGroup().addTo(mapB); markers = {};
+    list.forEach(i => {
+      const m = L.circleMarker([i.lat, i.lng], {radius: 9, color: "#fff", weight: 2, fillColor: prio(i.priority_score), fillOpacity: .9}).addTo(layer);
+      m.bindPopup(`<b>${esc(cap(i.category))}</b><br>${esc(i.description)}<br>Score ${i.priority_score} · ${i.report_count} reports`);
+      markers[i.id] = m;
+    });
+    $("#blist").innerHTML = list.length ? list.map((i, n) => card(i, n + 1, false)).join("")
+      : `<p class="muted">No issues yet.</p>`;
+  } catch (err) { toast(err.message, true); }
+}
+function focusIssue(id) {
+  const m = markers[id]; if (!m) return;
+  mapB.setView(m.getLatLng(), 17); m.openPopup();
+  window.scrollTo({top: 0, behavior: "smooth"});
+}
+async function affected(id) {
+  let p = savedPhone();
+  if (!p) { p = prompt("Enter your phone number to confirm (one vote per phone):") || ""; if (!p) return; }
+  try {
+    await api(`/issues/${id}/upvote`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({phone: p})});
+    savePhone(p); toast("Thanks! Marked as affected."); loadBoard();
+  } catch (err) { toast(err.message, true); }
+}
+
+// ---------- 3. authority dashboard ----------
+async function loadDept() {
+  const d = $("#dept").value;
+  try {
+    const list = await api(d ? `/dept/${encodeURIComponent(d)}/issues` : "/issues");
+    $("#dlist").innerHTML = list.length ? list.map((i, n) => card(i, n + 1, true)).join("")
+      : `<p class="muted">No issues for this department.</p>`;
+  } catch (err) { toast(err.message, true); }
+}
+$("#dept").onchange = loadDept;
+async function setStatus(id) {
+  const p = $("#pin").value.trim();
+  if (!p) return toast("Enter your department PIN first.", true);
+  try {
+    await api(`/issues/${id}/status`, {method: "PATCH",
+      headers: {"Content-Type": "application/json", "X-Dept-Pin": p},
+      body: JSON.stringify({status: $("#s" + id).value, note: $("#n" + id).value || null})});
+    toast("Status updated."); loadDept();
+  } catch (err) { toast(err.message, true); }
+}
+
+show("report");
+</script>
+</body>
+</html>
