@@ -2,7 +2,7 @@
 
 **Report once. Count every voice. Fix by priority.**
 
-A civic complaint platform for Puttur, Karnataka. Citizens report problems such as potholes, broken streetlights, water leaks and garbage with a photo and a map location. The backend merges duplicate reports into a single issue, ranks every issue by a transparent priority score, and gives authorities a department-wise queue of what to fix first.
+A civic complaint platform for Puttur. Citizens report problems such as potholes, broken streetlights, water leaks, and garbage with a photo and a map location. The backend merges duplicate reports into a single issue, ranks every issue by a transparent priority score, and gives authorities a department-wise queue of what to fix first.
 
 > Built for **Byte Race 2026** (Project Sprint) at Vivekananda College of Engineering & Technology, Puttur, in association with the Department of Computer Science & Engineering.
 
