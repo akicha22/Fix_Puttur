@@ -7,14 +7,16 @@ Then open http://localhost:8000/docs to try every endpoint.
 """
 
 import math
+import os
 import re
 import secrets
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -32,7 +34,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
+from sqlalchemy.orm import Session, declarative_base, relationship, selectinload, sessionmaker
 
 # ----------------------------------------------------------------------------
 # 1. SETTINGS
@@ -58,14 +60,17 @@ CATEGORIES = {
     "request/suggestion": (2, "General"),
 }
 
-# One secret PIN per department.
-DEPT_PINS = {
-    "Roads": "1111",
-    "Water Supply": "2222",
-    "Electricity": "3333",
-    "Sanitation": "4444",
-    "General": "5555",
-}
+# PINs come from environment variables: PIN_ROADS, PIN_WATER_SUPPLY, PIN_ELECTRICITY,
+# PIN_SANITATION, PIN_GENERAL. The fallback values are for local testing ONLY.
+_DEFAULT_PINS = {"Roads": "1111", "Water Supply": "2222", "Electricity": "3333",
+                 "Sanitation": "4444", "General": "5555"}
+DEPT_PINS = {d: os.environ.get("PIN_" + d.upper().replace(" ", "_"), p)
+             for d, p in _DEFAULT_PINS.items()}
+if DEPT_PINS == _DEFAULT_PINS:
+    print("WARNING: using default test PINs. Set the PIN_* environment variables before going live.")
+
+MAX_TEXT = 1000          # longest allowed description / note
+FAILED_PINS = {}         # ip address -> times of recent wrong PINs
 
 
 # ----------------------------------------------------------------------------
@@ -276,6 +281,8 @@ def create_report(
     description = description.strip()
     if not description:
         raise HTTPException(400, "Description cannot be empty")
+    if len(description) > MAX_TEXT:
+        raise HTTPException(400, f"Description is too long (max {MAX_TEXT} characters)")
     if not (-90 <= lat <= 90 and -180 <= lng <= 180):
         raise HTTPException(400, "lat/lng are out of range")
 
@@ -288,13 +295,22 @@ def create_report(
         data = photo.file.read(MAX_PHOTO_BYTES + 1)
         if len(data) > MAX_PHOTO_BYTES:
             raise HTTPException(413, "Photo is too big (max 5 MB)")
+        is_img = (data[:3] == b"\xff\xd8\xff" or data[:8] == b"\x89PNG\r\n\x1a\n"
+                  or (data[:4] == b"RIFF" and data[8:12] == b"WEBP"))
+        if not is_img:  # the file name can lie, the first bytes can't
+            raise HTTPException(400, "That file is not a real image")
         filename = f"{uuid.uuid4().hex}{ext}"  # random name, so nobody can overwrite files
         (UPLOAD_DIR / filename).write_bytes(data)
         photo_path = f"/uploads/{filename}"
 
     # --- look for an OPEN issue of the SAME category within 50 m ---
     now = utcnow()
-    candidates = db.query(Issue).filter(Issue.status == "open", Issue.category == category).all()
+    dlat = MERGE_RADIUS_M * 1.5 / 111000  # cheap box around the pin so we don't scan every issue
+    dlng = dlat / max(math.cos(math.radians(lat)), 0.01)
+    candidates = db.query(Issue).filter(
+        Issue.status == "open", Issue.category == category,
+        Issue.lat.between(lat - dlat, lat + dlat), Issue.lng.between(lng - dlng, lng + dlng),
+    ).all()
     nearest, nearest_dist = None, None
     for c in candidates:
         dist = haversine_m(lat, lng, c.lat, c.lng)
@@ -302,6 +318,11 @@ def create_report(
             nearest, nearest_dist = c, dist
 
     if nearest is not None:
+        if db.query(Report).filter_by(issue_id=nearest.id, reporter_phone=phone).first():
+            if photo_path:  # don't leave an orphan photo behind
+                (UPLOAD_DIR / Path(photo_path).name).unlink(missing_ok=True)
+            raise HTTPException(409, f"You already reported this problem (issue #{nearest.id}). "
+                                     "Use 'I'm affected' on the board instead.")
         issue = nearest
         merged = True
         issue.report_count += 1
@@ -356,7 +377,7 @@ def list_issues(
     status: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    query = db.query(Issue)
+    query = db.query(Issue).options(selectinload(Issue.reports))
     if category:
         query = query.filter(Issue.category == clean_category(category))
     if status:
@@ -401,17 +422,27 @@ class StatusBody(BaseModel):
 def update_status(
     issue_id: int,
     body: StatusBody,
+    request: Request,
     x_dept_pin: Optional[str] = Header(None),  # read from the "X-Dept-Pin" header
     db: Session = Depends(get_db),
 ):
     issue = get_issue_or_404(db, issue_id)
+
+    # Lock out an address after 5 wrong PINs in 10 minutes (stops PIN guessing).
+    ip = request.client.host if request.client else "?"
+    now_t = time.time()
+    recent = [t for t in FAILED_PINS.get(ip, []) if now_t - t < 600]
+    if len(recent) >= 5:
+        raise HTTPException(429, "Too many wrong PINs. Try again in 10 minutes.")
 
     # The PIN must belong to the department that owns this issue.
     correct_pin = DEPT_PINS.get(issue.department, "")
     if not x_dept_pin or not correct_pin or not secrets.compare_digest(
         x_dept_pin.encode(), correct_pin.encode()
     ):
+        FAILED_PINS[ip] = recent + [now_t]
         raise HTTPException(401, "Missing or wrong X-Dept-Pin for this department")
+    FAILED_PINS.pop(ip, None)
 
     new_status = body.status.strip().lower()
     if new_status not in STATUSES:
@@ -426,7 +457,7 @@ def update_status(
             issue_id=issue.id,
             old_status=old_status,
             new_status=new_status,
-            note=body.note,
+            note=(body.note or "")[:MAX_TEXT] or None,
         )
     )
     issue.priority_score = compute_priority(issue, utcnow())
@@ -435,11 +466,19 @@ def update_status(
     return {"issue_id": issue_id, "old_status": old_status, "new_status": new_status}
 
 
+@app.get("/issues/{issue_id}/history")
+def issue_history(issue_id: int, db: Session = Depends(get_db)):
+    get_issue_or_404(db, issue_id)
+    rows = db.query(StatusLog).filter_by(issue_id=issue_id).order_by(StatusLog.id).all()
+    return [{"old_status": r.old_status, "new_status": r.new_status, "note": r.note,
+             "changed_at": r.changed_at.isoformat() + "Z"} for r in rows]
+
+
 @app.get("/dept/{name}/issues")
 def department_issues(name: str, db: Session = Depends(get_db)):
     if name.strip().lower() not in {d.lower() for d in DEPT_PINS}:
         raise HTTPException(404, f"Unknown department. Choose one of: {', '.join(DEPT_PINS)}")
-    issues = db.query(Issue).filter(func.lower(Issue.department) == name.strip().lower()).all()
+    issues = db.query(Issue).options(selectinload(Issue.reports)).filter(func.lower(Issue.department) == name.strip().lower()).all()
     return serialize_and_sort(db, issues)
 
 
