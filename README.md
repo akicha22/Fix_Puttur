@@ -1,10 +1,8 @@
 # FixPuttur
 
-**Report once. Count every voice. Fix by priority.**
+**Thought, Built and Presented by AURA FARMERS**
 
 A civic complaint platform for Puttur. Citizens report problems such as potholes, broken streetlights, water leaks, and garbage with a photo and a map location. The backend merges duplicate reports into a single issue, ranks every issue by a transparent priority score, and gives authorities a department-wise queue of what to fix first.
-
-> Built for **Byte Race 2026** (Project Sprint) at Vivekananda College of Engineering & Technology, Puttur, in association with the Department of Computer Science & Engineering.
 
 ---
 
@@ -12,9 +10,7 @@ A civic complaint platform for Puttur. Citizens report problems such as potholes
 
 | | Link |
 |---|---|
-| Live demo | [ADD LINK, or delete this row if there is none] |
-| Demo video | [ADD LINK, or delete this row if there is none] |
-| Slides | [ADD LINK, or delete this row if there is none] |
+| Live demo | [fix-puttur.onrender.com](https://fix-puttur.onrender.com/) |
 
 ---
 
@@ -28,8 +24,6 @@ Residents of Puttur report civic problems through phone calls, WhatsApp messages
 - Authorities **cannot prioritise what they cannot see.**
 
 **Who is affected:** residents, daily commuters, students, and the officers who handle complaints.
-
-**From our survey:** We asked [N] people in Puttur, and [X] did not know where to complain. *(Replace with your real numbers, or delete this paragraph if you did not run a survey.)*
 
 ---
 
@@ -84,85 +78,18 @@ Safety hazards are weighted above inconvenience. Time also counts, so an issue l
 | Database | SQLite (via SQLAlchemy) |
 | File storage | Local `uploads/` folder for photos |
 | Server | Uvicorn |
+| Hosting | Render |
 
-**AI tools used:** Claude was used for code generation, debugging and drafting. All team members have reviewed the code and can explain how it works. *(Edit to match what you actually used.)*
-
+**AI tools used:** Claude was used for code generation, debugging and drafting.
 ---
-
-## 4. Setup Steps
-
-**Requirements:** Python 3.10 or newer, and Git.
-
-### 1) Clone the repository
-
-```bash
-git clone https://github.com/YOUR-USERNAME/fixputtur.git
-cd fixputtur
-```
-
-### 2) Create a virtual environment
-
-Windows:
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
-
-Mac / Linux:
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3) Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4) Run the app
-
-```bash
-uvicorn main:app --reload --host 0.0.0.0
-```
-
-### 5) Open it
-
-- App: http://127.0.0.1:8000
-- Interactive API docs: http://127.0.0.1:8000/docs
-
-### 6) Load sample data (optional)
-
-Open http://127.0.0.1:8000/docs, find `POST /seed` and click **Try it out → Execute**. This adds sample issues around Puttur so the map is not empty.
 
 ### Authority dashboard
 
-The dashboard asks for a department PIN. The demo PIN is set in `main.py` ([ADD WHERE YOU SET IT]). This is for demonstration only. A real pilot would use proper authentication.
-
-### Notes
-
-- Browser location (the "use my location" button) works on `localhost` or HTTPS. On a phone over plain HTTP, tap the map to drop a pin instead.
-- To open the app on a phone on the same Wi-Fi, use your laptop's local IP address and port 8000, for example `http://192.168.x.x:8000`.
+The dashboard asks for a department PIN. The demo PIN is set in `main.py`. This is for demonstration only. A real pilot would use proper authentication.
 
 ---
 
-## 5. API Overview
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| POST | `/reports` | Submit a report (merges with a nearby open issue, or creates a new one) |
-| GET | `/issues` | Public list sorted by priority, with optional filters |
-| POST | `/issues/{id}/upvote` | "I'm affected too" |
-| GET | `/dept/{name}/issues` | Ranked queue for one department |
-| PATCH | `/issues/{id}/status` | Authority updates the status (PIN required, written to the status log) |
-| GET | `/stats` | Totals for issues and reports |
-| POST | `/seed` | Load sample data |
-
-*(Edit this table to match the endpoints you actually built.)*
-
----
-
-## 6. Project Structure
+## 4. Project Structure
 
 ```
 fixputtur/
@@ -173,48 +100,19 @@ fixputtur/
   README.md
 ```
 
-*(Edit this to match your actual folders and files.)*
-
 ---
 
-## 7. Screenshots
+## 5. Screenshots and Demo
 
-| Report page | Public board | Authority dashboard |
-|---|---|---|
-| ![Report](screenshots/report.png) | ![Board](screenshots/board.png) | ![Dashboard](screenshots/dashboard.png) |
-
-*(Create a `screenshots/` folder, add your 3 images with these names, or change the paths.)*
+Available within `demo/screenshots` folder
 
 ---
-
-## 8. Current Status
-
-Edit the ticks to match what really works today.
-
-- [x] Problem research and database design
-- [x] Complaint submission with category, location and photo
-- [x] Duplicate merging (same category, within 50 m)
-- [x] Priority score and ranked public board
-- [ ] Authority dashboard with status updates
-- [ ] "I'm affected too" voting
-- [ ] Escalation flags
-- [ ] Kannada interface and notifications
-
----
-
-## 9. Challenges and How We Handle Them
-
-| Challenge | Approach |
-|---|---|
-| Fake or spam reports | Photo encouraged, limits per phone number, issues reported by only one source are flagged |
-| Privacy | Reporter phone numbers are never shown publicly |
-| Adoption by authorities | A pilot with one department first. The ranked queue saves officers time. |
 
 **Honest note:** FixPuttur has not yet been adopted by any local authority. The authority dashboard is a working demo of what a department officer or public representative's office would use, and a pilot with the local body is our proposed next step.
 
 ---
 
-## 10. Future Scope
+## 6. Future Scope
 
 - Kannada interface and voice input
 - WhatsApp / SMS status updates to citizens
@@ -224,24 +122,20 @@ Edit the ticks to match what really works today.
 
 ---
 
-## 11. Team
+## 7. Team
 
-**Team name:** [TEAM NAME]
+**Team name:** AURA FARMERS
 
 | # | Name | USN | Branch / Year | Role |
 |---|---|---|---|---|
-| 1 | [Name] (Team Leader) | [USN] | [Branch, Year] | [Role] |
-| 2 | [Name] | [USN] | [Branch, Year] | [Role] |
-| 3 | [Name] | [USN] | [Branch, Year] | [Role] |
-| 4 | [Name] | [USN] | [Branch, Year] | [Role] |
+| 1 | Akshaya (Team Leader) | 1FYCV002 | [Civil Engineering, 1st Year] | Coder |
+| 2 | P Shreenandama | 1FYME027 | [Mechanical Engineering, 2nd Year] | Motivator |
 
-**Team leader contact:** [Phone] | [Email]
-
-*(Delete unused rows.)*
+**Team leader contact:** +91 99008 50830 | unikaksince2008@gmail.com
 
 ---
 
-## 12. Acknowledgements
+## 8. Acknowledgements
 
 Organised by Vivekananda College of Engineering & Technology, Nehru Nagar, Puttur, in association with the Department of Computer Science & Engineering and the Computer Science Engineering Students' Association (ACES).
 
